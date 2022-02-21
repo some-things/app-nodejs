@@ -1,7 +1,8 @@
+import { int } from 'neo4j-driver'
+
 import { goodfellas, popular } from '../../test/fixtures/movies.js'
 import { roles } from '../../test/fixtures/people.js'
 import { toNativeTypes } from '../utils.js'
-import NotFoundError from '../errors/not-found.error.js'
 
 // TODO: Import the `int` function from neo4j-driver
 
@@ -12,11 +13,11 @@ export default class MovieService {
   driver
 
   /**
-    * The constructor expects an instance of the Neo4j Driver, which will be
-    * used to interact with Neo4j.
-    *
-    * @param {neo4j.Driver} driver
-    */
+   * The constructor expects an instance of the Neo4j Driver, which will be
+   * used to interact with Neo4j.
+   *
+   * @param {neo4j.Driver} driver
+   */
   constructor(driver) {
     this.driver = driver
   }
@@ -38,13 +39,35 @@ export default class MovieService {
    * @returns {Promise<Record<string, any>[]>}
    */
   // tag::all[]
-  async all(sort = 'title', order = 'ASC', limit = 6, skip = 0, userId = undefined) {
+  async all(
+    sort = "title",
+    order = "ASC",
+    limit = 6,
+    skip = 0,
+    userId = undefined
+  ) {
     // TODO: Open an Session
+    const session = this.driver.session()
     // TODO: Execute a query in a new Read Transaction
+    const result = await session.readTransaction((tx) =>
+      tx.run(
+        `
+      MATCH (m:Movie)
+      WHERE m.\`${sort}\` IS NOT NULL
+      RETURN m { .* } AS movie
+      ORDER BY m.\`${sort}\` ${order}
+      SKIP $skip
+      LIMIT $limit
+      `,
+        { skip: int(skip), limit: int(limit) }
+      )
+    )
     // TODO: Get a list of Movies from the Result
+    const movies = result.records.map((row) => toNativeTypes(row.get("movie")))
     // TODO: Close the session
+    await session.close()
 
-    return popular
+    return movies
   }
   // end::all[]
 
@@ -70,7 +93,14 @@ export default class MovieService {
    * @returns {Promise<Record<string, any>[]>}
    */
   // tag::getByGenre[]
-  async getByGenre(name, sort = 'title', order = 'ASC', limit = 6, skip = 0, userId = undefined) {
+  async getByGenre(
+    name,
+    sort = "title",
+    order = "ASC",
+    limit = 6,
+    skip = 0,
+    userId = undefined
+  ) {
     // TODO: Get Movies in a Genre
     // MATCH (m:Movie)-[:IN_GENRE]->(:Genre {name: $name})
 
@@ -100,7 +130,14 @@ export default class MovieService {
    * @returns {Promise<Record<string, any>[]>}
    */
   // tag::getForActor[]
-  async getForActor(id, sort = 'title', order = 'ASC', limit = 6, skip = 0, userId = undefined) {
+  async getForActor(
+    id,
+    sort = "title",
+    order = "ASC",
+    limit = 6,
+    skip = 0,
+    userId = undefined
+  ) {
     // TODO: Get Movies acted in by a Person
     // MATCH (:Person {tmdbId: $id})-[:ACTED_IN]->(m:Movie)
 
@@ -130,7 +167,14 @@ export default class MovieService {
    * @returns {Promise<Record<string, any>[]>}
    */
   // tag::getForDirector[]
-  async getForDirector(id, sort = 'title', order = 'ASC', limit = 6, skip = 0, userId = undefined) {
+  async getForDirector(
+    id,
+    sort = "title",
+    order = "ASC",
+    limit = 6,
+    skip = 0,
+    userId = undefined
+  ) {
     // TODO: Get Movies directed by a Person
     // MATCH (:Person {tmdbId: $id})-[:DIRECTED]->(m:Movie)
 
@@ -184,11 +228,10 @@ export default class MovieService {
   async getSimilarMovies(id, limit = 6, skip = 0, userId = undefined) {
     // TODO: Get similar movies based on genres or ratings
 
-    return popular.slice(skip, skip + limit)
-      .map(item => ({
-        ...item,
-        score: (Math.random() * 100).toFixed(2)
-      }))
+    return popular.slice(skip, skip + limit).map((item) => ({
+      ...item,
+      score: (Math.random() * 100).toFixed(2),
+    }))
   }
   // end::getSimilarMovies[]
 
@@ -206,5 +249,4 @@ export default class MovieService {
     return []
   }
   // end::getUserFavorites[]
-
 }
