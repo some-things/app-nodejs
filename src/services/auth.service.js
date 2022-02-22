@@ -1,4 +1,4 @@
-import { hash } from 'bcrypt'
+import { compare, hash } from 'bcrypt'
 import jwt from 'jsonwebtoken'
 
 import { user } from '../../test/fixtures/users.js'
@@ -118,19 +118,52 @@ export default class AuthService {
   // tag::authenticate[]
   async authenticate(email, unencryptedPassword) {
     // TODO: Authenticate the user from the database
-    if (
-      email === "graphacademy@neo4j.com" &&
-      unencryptedPassword === "letmein"
-    ) {
-      const { password, ...claims } = user.properties
+    // if (
+    //   email === "graphacademy@neo4j.com" &&
+    //   unencryptedPassword === "letmein"
+    // ) {
+    //   const { password, ...claims } = user.properties
 
-      return {
-        ...claims,
-        token: jwt.sign(claims, process.env.JWT_SECRET),
-      }
+    //   return {
+    //     ...claims,
+    //     token: jwt.sign(claims, process.env.JWT_SECRET),
+    //   }
+
+    // }
+
+    const session = this.driver.session()
+
+    // Find the User node within a Read Transaction
+    const res = await session.readTransaction((tx) =>
+      tx.run("MATCH (u:User {email: $email}) RETURN u", { email })
+    )
+
+    await session.close()
+
+    if (res.records.length === 0) {
+      return false
     }
 
-    return false
+    // Check password
+    const user = res.records[0].get("u")
+    const encryptedPassword = user.properties.password
+
+    const correct = await compare(unencryptedPassword, encryptedPassword)
+
+    if (correct === false) {
+      return false
+    }
+
+    // Extract the claims for the JWT
+    const { password, ...safeProperties } = user.properties
+
+    return {
+      ...safeProperties,
+      token: jwt.sign(
+        this.userToClaims(safeProperties),
+        process.env.JWT_SECRET
+      ),
+    }
   }
   // end::authenticate[]
 
