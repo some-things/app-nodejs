@@ -44,6 +44,7 @@ export default class FavoriteService {
     const session = this.driver.session()
 
     // TODO: Retrieve a list of movies favorited by the user
+    // NOTE: the function passed sort here, but tutorial cypher used orderBy
     const res = await session.readTransaction((tx) =>
       tx.run(
         `
